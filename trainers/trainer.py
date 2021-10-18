@@ -17,7 +17,6 @@ class Trainer(object):
         self.gpu_id = gpu_id
         self.workspace_dir = None
         self.use_save_checkpoint = workspace_dir is not None
-
         if workspace_dir is not None:
             self.workspace_dir = os.path.expanduser(workspace_dir)
             if not os.path.exists(self.workspace_dir):
@@ -77,9 +76,9 @@ class Trainer(object):
             load_checkpoint(path_to_checkpoint):
                 Loads the file from the given absolute path (str).
         """
-        net_type = type(self.net).__name__
 
         chkpt_path = os.path.join(self.workspace_dir, 'checkpoints')
+        device = torch.device("cuda:" + str(self.gpu_id) if torch.cuda.is_available() else "cpu")
 
         if checkpoint is None:
             # Load most recent checkpoint
@@ -97,11 +96,24 @@ class Trainer(object):
             checkpoint_path = os.path.expanduser(checkpoint)
         else:
             raise TypeError
+        net_type = type(self.net).__name__
+        # To eliminate "module from saved dict for cuda different from parallel"
+        if checkpoint != None:
+            state_dict = torch.load(checkpoint_path)
+            # print (state_dict)
+            # create new OrderedDict that does not contain `module.`
+            from collections import OrderedDict
+            checkpoint_dict = OrderedDict()
+            for k, v in state_dict['net'].items():
+                # print(k)
+                name = k[7:] # remove `module.`
+                # print(name)
+                checkpoint_dict[name] = v
+                # print(new_state_dict)
 
-        device = torch.device("cuda:" + str(self.gpu_id) if torch.cuda.is_available() else "cpu")
-        checkpoint_dict = torch.load(checkpoint_path, map_location=device)
+        # checkpoint_dict = torch.load(checkpoint_path, map_location=device)
 
-        self.net.load_state_dict(checkpoint_dict['net'])
+        self.net.load_state_dict(checkpoint_dict)
 
         # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
         if isinstance(checkpoint, int) or (checkpoint is None):

@@ -16,11 +16,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+from torchmetrics import MeanSquaredError, MeanAbsoluteError
 
 class iMAE(nn.Module):
-    def __init__(self):
+    def __init__(self, device = 'cuda:0'):
         super(iMAE, self).__init__()
+        self.mae = MeanAbsoluteError().to(device)
 
     def forward(self, outputs, target, *args):
         outputs = outputs / 1000.
@@ -31,38 +32,28 @@ class iMAE(nn.Module):
         target = 1. / target
         outputs[outputs == -1] = 0
         target[target == -1] = 0
-        val_pixels = (target > 0).float().cuda()
-        err = torch.abs(target * val_pixels - outputs * val_pixels)
-        loss = torch.sum(err.view(err.size(0), 1, -1), -1, keepdim=True)
-        cnt = torch.sum(val_pixels.view(val_pixels.size(0), 1, -1), -1, keepdim=True)
-        return torch.mean(loss / cnt)
+        return self.mae(outputs, target)
 
 class MAE(nn.Module):
-    def __init__(self):
+    def __init__(self, device = 'cuda:0'):
         super(MAE, self).__init__()
+        self.mae = MeanAbsoluteError().to(device)
 
-    def forward(self, outputs, target, *args):
-        val_pixels = ((target > 0).float()*(outputs>0).float()).cuda()
-        err = torch.abs(target * val_pixels - outputs * val_pixels)
-        loss = torch.sum(err.view(err.size(0), 1, -1), -1, keepdim=True)
-        cnt = torch.sum(val_pixels.view(val_pixels.size(0), 1, -1), -1, keepdim=True)
-        return torch.mean(loss / cnt) * 1000
+    def forward(self, outputs, target, *args): 
+        return self.mae(outputs, target) * 1000
 
 class RMSE(nn.Module):
-    def __init__(self):
+    def __init__(self, device = 'cuda:0'):
         super(RMSE, self).__init__()
+        self.rmse = MeanSquaredError(squared = False).to(device)
 
     def forward(self, outputs, target, *args):
-        val_pixels = ((target > 0).float()*(outputs>0).float()).cuda()
-        err = (target * val_pixels - outputs * val_pixels) ** 2
-        loss = torch.sum(err.view(err.size(0), 1, -1), -1, keepdim=True)
-        cnt = torch.sum(val_pixels.view(val_pixels.size(0), 1, -1), -1, keepdim=True)
-        #return torch.sqrt(torch.mean(loss / cnt))
-        return torch.mean(torch.sqrt(loss / cnt))  * 1000
+        return self.rmse(outputs, target) * 1000 
 
 class iRMSE(nn.Module):
-    def __init__(self):
+    def __init__(self, device = 'cuda:0'):
         super(iRMSE, self).__init__()
+        self.rmse = MeanSquaredError(squared = False).to(device)
 
     def forward(self, outputs, target, *args):
 
@@ -74,9 +65,4 @@ class iRMSE(nn.Module):
         target = 1. / target
         outputs[outputs == -1] = 0
         target[target == -1] = 0
-        val_pixels = (target > 0).float().cuda()
-        err = (target * val_pixels - outputs * val_pixels) ** 2
-        loss = torch.sum(err.view(err.size(0), 1, -1), -1, keepdim=True)
-        cnt = torch.sum(val_pixels.view(val_pixels.size(0), 1, -1), -1, keepdim=True)
-        #return torch.sqrt(torch.mean(loss / cnt))
-        return torch.mean(torch.sqrt(loss / cnt))
+        return self.rmse(outputs, target) 

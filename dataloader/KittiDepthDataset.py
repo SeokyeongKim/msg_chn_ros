@@ -12,21 +12,24 @@ __email__ = "abdo.eldesokey@gmail.com"
 ########################################
 
 from PIL import Image
+import os
 import torch
 import numpy as np
 import glob
 import torchvision
 import random
+import time
 from torch.utils.data import DataLoader, Dataset
-
-
+import cv2
+from torchvision import transforms
+from math import floor
 class KittiDepthDataset(Dataset):
-    def __init__(self, data_path, gt_path, setname='train', transform=None, norm_factor=256, invert_depth=False,
-                 rgb_dir=None, rgb2gray=False, fill_depth = False, flip = False, blind = False):
+    def __init__(self, data_path, gt_path, setname='train', use_transform=False, norm_factor=256, invert_depth=False,
+                 rgb_dir=None, rgb2gray=False, fill_depth = False, flip = False, blind = False, debug = False):
         self.data_path = data_path
         self.gt_path = gt_path
         self.setname = setname
-        self.transform = transform
+        self.use_transform = use_transform
         self.norm_factor = norm_factor
         self.invert_depth = invert_depth
         self.rgb_dir = rgb_dir
@@ -34,11 +37,15 @@ class KittiDepthDataset(Dataset):
         self.fill_depth = fill_depth
         self.flip = flip
         self.blind = blind
+        self.debug = debug
+        self.data = list(sorted(glob.iglob(self.data_path + "/*.png", recursive=True)))
+        self.gt = list(sorted(glob.iglob(self.gt_path + "/*.png", recursive=True)))
+        self.rgb = list(sorted(glob.iglob(self.rgb_dir + "/*.jpg", recursive=True)))
+        if self.debug:
+            self.print_directories()
+        H_multiple_16, W_multiple_16 = self.modify_image_size()
+        self.transform = transforms.Compose([transforms.CenterCrop((H_multiple_16, W_multiple_16))])
 
-        self.data = list(sorted(glob.iglob(self.data_path + "/**/*.png", recursive=True)))
-        self.gt = list(sorted(glob.iglob(self.gt_path + "/**/*.png", recursive=True)))
-
-        assert (len(self.gt) == len(self.data))
 
     def __len__(self):
         return len(self.data)
@@ -47,66 +54,18 @@ class KittiDepthDataset(Dataset):
         if item < 0 or item >= self.__len__():
             return None
 
-        # Check if Data filename is equal to GT filename
-        if self.setname == 'train' or self.setname == 'val':
-            data_path = self.data[item].split(self.setname)[1]
-            gt_path = self.gt[item].split(self.setname)[1]
-
-            assert (data_path[0:25] == gt_path[0:25])  # Check folder name
-
-            data_path = data_path.split('image')[1]
-            gt_path = gt_path.split('image')[1]
-
-            assert (data_path == gt_path)  # Check filename
-
-            # Set the certainty path
-            sep = str(self.data[item]).split('data_depth_velodyne')
-
-        elif self.setname == 'selval':
-            data_path = self.data[item].split('00000')[1]
-            gt_path = self.gt[item].split('00000')[1]
-            assert (data_path == gt_path)
-            # Set the certainty path
-            sep = str(self.data[item]).split('/velodyne_raw/')
-
-
-
-        # Read images and convert them to 4D floats
+  
         data = Image.open(str(self.data[item]))
-
         gt = Image.open(str(self.gt[item]))
 
-
+        # Get image name to save results
+        name_image = os.path.basename(self.data[item])
+        name_image = name_image.split('.', 2)[0]
 
         # Read RGB images
-        if self.setname == 'train' or self.setname == 'val':
-            gt_path = str(self.gt[item])
-            idx = gt_path.find('2011')
-            day_dir = gt_path[idx:idx + 10]
-            idx2 = gt_path.find('groundtruth')
-            fname = gt_path[idx2 + 12:]
-            rgb_path = self.rgb_dir + '/' + day_dir + '/' + gt_path[idx:idx + 26] + '/' + fname[
-                                                                                          :8] + '/data/' + fname[9:]
-            rgb = Image.open(rgb_path)
+        rgb_path = self.rgb[item]
 
-
-        elif self.setname == 'selval':
-            data_path = str(self.data[item])
-            idx = data_path.find('velodyne_raw')
-            fname = data_path[idx + 12:]
-            idx2 = fname.find('velodyne_raw')
-            rgb_path = data_path[:idx] + 'image' + fname[:idx2] + 'image' + fname[idx2 + 12:]
-            rgb = Image.open(rgb_path)
-        elif self.setname == 'test':
-            data_path = str(self.data[item])
-            idx = data_path.find('velodyne_raw')
-            fname = data_path[idx + 12:]
-            rgb_path = data_path[:idx] + 'image/' + fname
-            rgb = Image.open(rgb_path)
-
-
-
-
+        rgb = Image.open(str(rgb_path))
 
         if self.rgb2gray:
             t = torchvision.transforms.Grayscale(1)
@@ -114,21 +73,18 @@ class KittiDepthDataset(Dataset):
 
         W, H = data.size
 
-
-
-
-
         # Apply transformations if given
-        if self.transform is not None:
+        if self.use_transform:
             data = self.transform(data)
             gt = self.transform(gt)
             rgb = self.transform(rgb)
-        if self.transform is None and self.setname == 'train':
-            crop_lt_u = random.randint(0, W - 1216)
-            crop_lt_v = random.randint(0, H - 352)
-            data = data.crop((crop_lt_u, crop_lt_v, crop_lt_u+1216, crop_lt_v+352))
-            gt = gt.crop((crop_lt_u, crop_lt_v, crop_lt_u + 1216, crop_lt_v + 352))
-            rgb = rgb.crop((crop_lt_u, crop_lt_v, crop_lt_u + 1216, crop_lt_v + 352))
+
+        if not self.use_transform and self.setname == 'train':
+            crop_lt_u = random.randint(0, W - 720)
+            crop_lt_v = random.randint(0, H - 528)
+            data = data.crop((crop_lt_u, crop_lt_v, crop_lt_u+720, crop_lt_v+ 528))
+            gt = gt.crop((crop_lt_u, crop_lt_v, crop_lt_u + 720, crop_lt_v + 528))
+            rgb = rgb.crop((crop_lt_u, crop_lt_v, crop_lt_u + 720, crop_lt_v + 528))
 
 
         if self.flip and random.randint(0, 1) and self.setname == 'train':
@@ -136,23 +92,20 @@ class KittiDepthDataset(Dataset):
             gt = gt.transpose(Image.FLIP_LEFT_RIGHT)
             rgb = rgb.transpose(Image.FLIP_LEFT_RIGHT)
 
-
         # Convert to numpy
-        data = np.array(data, dtype=np.float16)
+        data = np.array(data, dtype=np.float64)
         gt = np.array(gt, dtype=np.float16)
 
 
-        #blind
+
+        # blind
         if self.blind and (self.setname == 'train'):
             blind_start = random.randint(100, H - 50)
             data[blind_start:blind_start+50, :] = 0
 
         # define the certainty
         C = (data > 0).astype(float)
-
-
-        # Normalize the data
-        data = data / self.norm_factor  # [0,1]
+        data = data / self.norm_factor  # [8bits]a
         gt = gt / self.norm_factor
 
         # Expand dims into Pytorch format
@@ -176,12 +129,64 @@ class KittiDepthDataset(Dataset):
             gt[gt == -1] = 0
 
         # Convert RGB image to tensor
+
         rgb = np.array(rgb, dtype=np.float16)
         rgb /= 255
+
         if self.rgb2gray:
             rgb = np.expand_dims(rgb, 0)
         else:
             rgb = np.transpose(rgb, (2, 0, 1))
         rgb = torch.tensor(rgb, dtype=torch.float)
 
-        return data, C, gt, item, rgb
+        c, w, h = rgb.size()
+
+        """
+        Figure it out if this is needed later. Objective of this code:
+        prints the percentage of depth points and save image with specific number for
+        ablation study when changing the weights of rgb or depth encoder
+        """ 
+        # print (self.data[item])
+        # if '150.png' in str(self.rgb[item]):
+        #     print('\n\n')
+            # print("*"*60)
+            # print("Number of depth points in the image: ", torch.count_nonzero(data))
+            # print("Number of depth points in the grount truth: ", torch.count_nonzero(gt))
+            # print("Number of points in the rgb: ", torch.count_nonzero(rgb))
+            # print("Percentage gt points in the area: ", ((torch.count_nonzero(gt)/(w*h))*100), '%')
+            # print("Percentage depth points in the area: ", ((torch.count_nonzero(data)/(w*h))*100), '%')
+            # print("Percentage rgb points in the area: ", ((torch.count_nonzero(rgb)/(w*h*c))*100), '%')
+            # print("size tensor: ", data.size(), gt.size(), rgb.size())
+            # flag_save_image = True
+
+        return data, C, gt, rgb, name_image
+
+    def modify_image_size(self):
+        # Crop center for all images. They need to have same size for the neural network
+        w = 10000
+        h = 10000
+        for img in self.data:
+            img = Image.open(str(img))
+            W, H = img.size
+            if w > W or h > H: # Save lowest sizes 
+                w = W 
+                h = H
+        W_multiple_16 = 16 * floor(w/16) # Find lowest multiple of 16 for Cnn layers
+        H_multiple_16 = 16 * floor(h/16)
+        if  self.debug:
+            print("Original image size: ", w, h)
+            print("Modified image size: ", W_multiple_16, H_multiple_16, '\n')
+            
+        return H_multiple_16, W_multiple_16
+
+    def print_directories(self):
+        assert (len(self.gt) == len(self.data) == len(self.rgb))
+        print("*" * 60)
+        print(" " * 20, "Dataset", self.setname)
+        print("*" * 60)
+        print("Depth Directory: ", self.data_path)
+        print("RGB Directory: ", self.rgb_dir)
+        print("Label Directory: ", self.gt_path)
+        print("No of depth images: ", len(self.data))
+        print("No of rgb images: ", len(self.rgb))
+        print("No of labeled images: ", len(self.gt))
