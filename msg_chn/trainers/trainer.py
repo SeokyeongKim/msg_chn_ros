@@ -106,8 +106,8 @@ class Trainer(object):
             checkpoint_dict = OrderedDict()
             for k, v in state_dict['net'].items():
                 # print(k)
-                name = k[7:] # remove `module.`
-                # print(name)
+                # name = k[7:] # remove `module.`
+                name = k # remove `module.`
                 checkpoint_dict[name] = v
                 # print(new_state_dict)
 

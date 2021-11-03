@@ -69,7 +69,7 @@ parser.add_argument('-exp',
                     help='Experiment name as in workspace directory'
                     'Defaults at %(default)s',
                     )
-parser.add_argument('-chkpt', 
+parser.add_argument('-m', '--model', 
                     action='store', 
                     dest='chkpt', 
                     default=None,  
@@ -77,15 +77,7 @@ parser.add_argument('-chkpt',
                     help='Checkpoint number to load'
                     'Defaults at %(default)s',
                     )
-# parser.add_argument('-set', 
-#                     action='store', 
-#                     dest='set', 
-#                     default='val', 
-#                     type=str, 
-#                     nargs='?',
-#                     help='Which set to evaluate on "val" or "test"'
-#                     'Defaults at %(default)s',
-#                     )
+
 parser.add_argument('-w', '--wandb', 
                     action='store_true', 
                     dest='useWandb', 
@@ -93,7 +85,7 @@ parser.add_argument('-w', '--wandb',
                     help= 'Start weights and biases analysis'
                     'Defaults at %(default)s',
                     )
-parser.add_argument('-n', '--name', 
+parser.add_argument('-n', 
                     type = str,
                     action = 'store',
                     dest='runName', 

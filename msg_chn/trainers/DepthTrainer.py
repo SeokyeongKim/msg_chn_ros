@@ -103,6 +103,7 @@ class KittiDepthTrainer(Trainer):
 
             # Train the epoch
             loss_meter, train_err = self.train_epoch()
+            self.lr_scheduler.step()  # LR decay //chec, if this change was correctly made
 
 
             # Add the average loss for this epoch to stats
@@ -175,11 +176,10 @@ class KittiDepthTrainer(Trainer):
                     else:
                         loss = loss11
 
-                    loss.backward()
-
-                    self.optimizer.step()
+                    # Backpropagation
                     self.optimizer.zero_grad()
-                    self.lr_scheduler.step()  # LR decay //chec, if this change was correctly made
+                    loss.backward()
+                    self.optimizer.step()
 
                     # statistics
                     loss_meter[s].update(loss11.item(), inputs_d.size(0))
@@ -328,15 +328,16 @@ class KittiDepthTrainer(Trainer):
 
                     
                         val_err = self.calculate_metrics(outputs, labels, inputs_d, err)
-
-
-
-                        random_imgs = self.save_images.do(outputs, inputs_d, inputs_rgb, name_image, labels)
-
+                        if count_save < 10:
+                            random_imgs = self.save_images.do(outputs, 
+                                                              inputs_d, 
+                                                              inputs_rgb, 
+                                                              name_image, 
+                                                              labels)
                         if count_save < 1 and self.useWandb:
                             for imgs in random_imgs:
                                 imgs_wandb.append(imgs)
-                            count_save += 1
+                            
 
                         if self.useWandb:
                             for i, m in enumerate(err_metrics): wandb.log({
@@ -344,6 +345,8 @@ class KittiDepthTrainer(Trainer):
                                 'epochs': self.epoch})
                             wandb.log({(s + '_loss'): loss_meter[s].avg,
                                        'epochs' : self.epoch})
+
+                        count_save += 1
 
 
       

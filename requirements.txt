@@ -1,0 +1,11 @@
+matplotlib==3.2.1
+numpy==1.17.2
+opencv_python==3.4.0.12
+Pillow==8.4.0
+roslib==1.14.9
+sensor_msgs==1.12.8
+torch==1.10.0
+torchmetrics==0.5.1
+torchvision==0.11.1
+wandb==0.12.5
+tqdm

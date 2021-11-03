@@ -1,0 +1,6 @@
+camera_topic: /dalsa_camera_720p #Needs to be Image
+depth_topic: /front_lslidar/depth/image_raw
+path_model: "$(find msg_chn_ros)/msg_chn/model/final_model.pth.tar"
+network_path: "$(find msg_chn_ros)/msg_chn/workspace/exp_msg_chn"
+abs_path: "$(find msg_chn_ros)"
+norm_value: 30.

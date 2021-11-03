@@ -15,7 +15,7 @@ from PIL import Image
 import os
 import torch
 import numpy as np
-import glob
+from glob import iglob
 import torchvision
 import random
 import time
@@ -24,8 +24,9 @@ import cv2
 from torchvision import transforms
 from math import floor
 class KittiDepthDataset(Dataset):
-    def __init__(self, data_path, gt_path, setname='train', use_transform=False, norm_factor=256, invert_depth=False,
-                 rgb_dir=None, rgb2gray=False, fill_depth = False, flip = False, blind = False, debug = False):
+    def __init__(self, data_path, gt_path, setname='train', use_transform=False, 
+                 norm_factor=256, invert_depth=False, rgb_dir=None, 
+                 rgb2gray=False, fill_depth = False, flip = False, blind = False, debug = False):
         self.data_path = data_path
         self.gt_path = gt_path
         self.setname = setname
@@ -38,9 +39,21 @@ class KittiDepthDataset(Dataset):
         self.flip = flip
         self.blind = blind
         self.debug = debug
-        self.data = list(sorted(glob.iglob(self.data_path + "/*.png", recursive=True)))
-        self.gt = list(sorted(glob.iglob(self.gt_path + "/*.png", recursive=True)))
-        self.rgb = list(sorted(glob.iglob(self.rgb_dir + "/*.jpg", recursive=True)))
+        self.data = []
+        self.gt = []
+        self.rgb = []
+        exts = ('/*.jpg', '/*.png', '/*.jpeg')
+        for ext in exts:
+            self.data.extend(iglob(self.data_path + ext, recursive=True))
+            self.gt.extend(iglob(self.gt_path + ext, recursive=True))
+            self.rgb.extend(iglob(self.rgb_dir + ext, recursive=True))
+        self.data = (sorted(self.data))
+        self.gt = (sorted(self.gt))
+        self.rgb = (sorted(self.rgb))
+
+        # Make sure we have the same number of images rgb/depth
+        assert len(self.data) == len(self.rgb)
+
         if self.debug:
             self.print_directories()
         H_multiple_16, W_multiple_16 = self.modify_image_size()
@@ -66,7 +79,6 @@ class KittiDepthDataset(Dataset):
         rgb_path = self.rgb[item]
 
         rgb = Image.open(str(rgb_path))
-
         if self.rgb2gray:
             t = torchvision.transforms.Grayscale(1)
             rgb = t(rgb)
@@ -105,8 +117,10 @@ class KittiDepthDataset(Dataset):
 
         # define the certainty
         C = (data > 0).astype(float)
-        data = data / self.norm_factor  # [8bits]a
-        gt = gt / self.norm_factor
+
+        if data.max() > 256:
+            data = data / self.norm_factor  # [8bits]a
+            gt = gt / self.norm_factor
 
         # Expand dims into Pytorch format
         data = np.expand_dims(data, 0)
