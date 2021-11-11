@@ -79,6 +79,8 @@ class KittiDepthDataset(Dataset):
         rgb_path = self.rgb[item]
 
         rgb = Image.open(str(rgb_path))
+        # convert from rgba to rgb if necessary
+        rgb = rgb.convert('RGB')
         if self.rgb2gray:
             t = torchvision.transforms.Grayscale(1)
             rgb = t(rgb)
@@ -194,7 +196,6 @@ class KittiDepthDataset(Dataset):
         return H_multiple_16, W_multiple_16
 
     def print_directories(self):
-        assert (len(self.gt) == len(self.data) == len(self.rgb))
         print("*" * 60)
         print(" " * 20, "Dataset", self.setname)
         print("*" * 60)

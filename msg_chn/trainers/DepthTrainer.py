@@ -214,7 +214,7 @@ class KittiDepthTrainer(Trainer):
                             else:
                               pass
                             update_ratios.append(up)
-                          except FloatingPointError:
+                          except FloatingPointError as e:
                             print (e)
                             sys.exit(1)
                     update_ratios = np.array(update_ratios)
